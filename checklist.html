@@ -669,6 +669,11 @@
         .table-container::-webkit-scrollbar-thumb:hover {
             background: linear-gradient(45deg, #2980b9, #1f4e79);
         }
+        /* Add improved textarea style for remarks */
+        .remarks-textarea:focus {
+            outline: 2px solid #2563eb;
+            background: #f0f8ff;
+        }
     </style>
 </head>
 <body>
@@ -757,7 +762,7 @@
             </div><br>
             <label>Month:</label> <select id="month-select"></select>
         </div>
-
+        <button class="checklist-button" id="edit-update-btn">Edit</button>
         <div class="table-container">
             <table id="schedule-table">
                 <thead>
@@ -1010,6 +1015,58 @@
                 saveAugustData();
             }
         });
+
+        // --- Edit/Update Toggle Logic ---
+        const editUpdateBtn = document.getElementById('edit-update-btn');
+        function setEditable(isEditable) {
+            // Always keep checkboxes enabled
+            const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.disabled = false);
+            // Enable/disable remarks cells
+            Array.from(tableBody.rows).forEach(row => {
+                let remarksCell = row.querySelector('.remarks');
+                if (isEditable) {
+                    if (!remarksCell.querySelector('textarea')) {
+                        const textarea = document.createElement('textarea');
+                        textarea.value = remarksCell.textContent;
+                        textarea.className = 'remarks-textarea';
+                        textarea.rows = 2;
+                        textarea.style.width = '98%';
+                        textarea.style.resize = 'vertical';
+                        textarea.style.borderRadius = '6px';
+                        textarea.style.padding = '4px 8px';
+                        textarea.style.fontSize = '13px';
+                        textarea.style.background = 'rgba(255,255,255,0.95)';
+                        textarea.style.color = '#222';
+                        textarea.style.border = '1px solid #3498db';
+                        textarea.style.boxShadow = '0 2px 6px rgba(52,152,219,0.07)';
+                        remarksCell.textContent = '';
+                        remarksCell.appendChild(textarea);
+                    } else {
+                        remarksCell.querySelector('textarea').disabled = false;
+                    }
+                } else {
+                    const textarea = remarksCell.querySelector('textarea');
+                    if (textarea) {
+                        remarksCell.textContent = textarea.value;
+                    }
+                }
+            });
+        }
+        let isEditMode = false;
+        editUpdateBtn.addEventListener('click', function() {
+            isEditMode = !isEditMode;
+            if (isEditMode) {
+                setEditable(true);
+                editUpdateBtn.textContent = 'Update';
+            } else {
+                setEditable(false);
+                editUpdateBtn.textContent = 'Edit';
+                // Optionally: Save remarks to augustData or backend here
+            }
+        });
+        // On load, make sure checkboxes and remarks are not editable
+        setEditable(false);
     </script>
 </body>
 </html>
