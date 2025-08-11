@@ -9,7 +9,7 @@ const firebaseConfig = {
     messagingSenderId: "175091964720",
     appId: "1:175091964720:web:5a8711a27aefd0a25246f5",
     measurementId: "G-5VFMQE71H3",
-    databaseURL: "https://itmaintenance-a13e1-default-rtdb.asia-southeast1.firebasedatabase.app"
+    databaseURL: "https://itmaintenance-a13e1-default-rtdb.firebaseio.com"
   };
 
 // Export the config for use in other files
