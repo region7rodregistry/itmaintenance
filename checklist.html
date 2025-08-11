@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+      <link rel="icon" type="image/x-icon" href="icons/tlogo.png">
+<head>
+    <meta charset="UTF-8">
+    <title>2025 Equipment Maintenance Schedule</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        /* ===== Integrated CSS from dashboard.html (placed before existing rules) ===== */
+        * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+  }
+  
+  .dashboard-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1a1a 0%, #1e3a8a 50%, #000000 100%);
+    color: white;
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  
+  /* Header Styles */
+  .header {
+    background: linear-gradient(90deg, #000000 0%, #1e3a8a 50%, #000000 100%);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+  
+  .header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 0;
+  }
+  
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .logo {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #60a5fa, #2563eb);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+  }
+  
+  .header-text h1 {
+    font-size: 24px;
+    font-weight: bold;
+    background: linear-gradient(90deg, #ffffff, #bfdbfe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .header-text p {
+    color: rgba(191, 219, 254, 0.8);
+    font-size: 14px;
+  }
+  
+  .header-right {
+    text-align: right;
+  }
+  
+  /* Checklist Button */
+  .checklist-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    border-radius: 8px;
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 600;
+    box-shadow: 0 10px 25px rgba(30, 64, 175, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+
+  .checklist-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 35px rgba(30, 64, 175, 0.4);
+  }
+
+  .checklist-button i {
+    color: #ffffff;
+  }
+  
+  .update-label {
+    font-size: 14px;
+    color: rgba(191, 219, 254, 0.6);
+  }
+  
+  .update-time {
+    color: white;
+    font-weight: 500;
+  }
+  
+  /* Overview Grid */
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+    margin: 32px 0;
+  }
+  
+  .overview-card {
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    border: 1px solid;
+    padding: 24px;
+    transition: all 0.3s ease;
+  }
+  
+  .overview-card.operational {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(21, 128, 61, 0.2));
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+  
+  .overview-card.maintenance {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(161, 98, 7, 0.2));
+    border-color: rgba(234, 179, 8, 0.3);
+  }
+  
+  .overview-card.offline {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(153, 27, 27, 0.2));
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+  
+  .overview-card.total {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(29, 78, 216, 0.2));
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  
+  .card-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .card-label {
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.8;
+    margin-bottom: 4px;
+  }
+  
+  .card-value {
+    font-size: 32px;
+    font-weight: bold;
+  }
+  
+  .operational .card-value {
+    color: #4ade80;
+  }
+  .maintenance .card-value {
+    color: #facc15;
+  }
+  .offline .card-value {
+    color: #f87171;
+  }
+  .total .card-value {
+    color: #60a5fa;
+  }
+  
+  .card-icon {
+    font-size: 32px;
+  }
+  
+  .operational .card-icon {
+    color: #4ade80;
+  }
+  .maintenance .card-icon {
+    color: #facc15;
+  }
+  .offline .card-icon {
+    color: #f87171;
+  }
+  .total .card-icon {
+    color: #60a5fa;
+  }
+  
+  /* Health Card */
+  .health-card {
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.5), rgba(17, 24, 39, 0.5));
+    border: 1px solid rgba(55, 65, 81, 0.5);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    margin-bottom: 32px;
+  }
+  
+  .card-header {
+    padding: 24px 24px 0;
+  }
+  
+  .card-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .card-header i {
+    color: #60a5fa;
+  }
+  
+  .card-body {
+    padding: 24px;
+  }
+  
+  .health-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  
+  .health-info span:first-child {
+    color: #d1d5db;
+  }
+  
+  .health-percentage {
+    font-size: 24px;
+    font-weight: bold;
+    color: #4ade80;
+  }
+  
+  .progress-bar {
+    width: 100%;
+    height: 12px;
+    background-color: #374151;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+    border-radius: 6px;
+    transition: width 0.5s ease;
+  }
+  
+  .health-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #9ca3af;
+  }
+  
+  /* Equipment Grid */
+  .equipment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-bottom: 48px;
+  }
+  
+  .equipment-card {
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.5), rgba(17, 24, 39, 0.5));
+    border: 1px solid rgba(55, 65, 81, 0.5);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    transition: all 0.3s ease;
+  }
+  
+  .equipment-card:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: translateY(-2px);
+  }
+  
+  .equipment-header {
+    padding: 20px 20px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .equipment-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+  }
+  
+  .equipment-icon {
+    padding: 8px;
+    border-radius: 8px;
+    color: white;
+    font-size: 20px;
+  }
+  
+  .equipment-badge {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  
+  .equipment-body {
+    padding: 0 20px 20px;
+  }
+  
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  
+  .status-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .status-value {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .status-value.operational {
+    color: #4ade80;
+  }
+  .status-value.maintenance {
+    color: #facc15;
+  }
+  .status-value.offline {
+    color: #f87171;
+  }
+  
+  .status-label {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+  
+  .status-label.operational {
+    color: rgba(74, 222, 128, 0.8);
+  }
+  .status-label.maintenance {
+    color: rgba(250, 204, 21, 0.8);
+  }
+  .status-label.offline {
+    color: rgba(248, 113, 113, 0.8);
+  }
+  
+  .equipment-health {
+    margin-top: 16px;
+  }
+  
+  .health-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  
+  .health-header span:first-child {
+    color: #d1d5db;
+  }
+  
+  .health-header span:last-child {
+    color: white;
+    font-weight: 500;
+  }
+  
+  .equipment-progress {
+    width: 100%;
+    height: 8px;
+    background-color: #374151;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .equipment-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+  
+  /* Footer */
+  .footer {
+    text-align: center;
+    margin-top: 48px;
+    padding-bottom: 32px;
+  }
+  
+  .footer p {
+    color: #9ca3af;
+    font-size: 14px;
+  }
+  
+  .footer-subtitle {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .container {
+      padding: 0 16px;
+    }
+  
+    .header-content {
+      flex-direction: column;
+      gap: 16px;
+      text-align: center;
+    }
+  
+    .overview-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+  
+    .equipment-grid {
+      grid-template-columns: 1fr;
+    }
+  
+    .health-details {
+      flex-direction: column;
+      gap: 8px;
+    }
+  }
+        /* ===== End integrated CSS from dashboard.html ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #000000 0%, #042fee 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 2200px;
+            margin: 0 auto;
+            background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(240,248,255,0.9) 100%);
+            border-radius: 5px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            font-size: 28px;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(52,152,219,0.1) 0%, rgba(41,128,185,0.05) 100%);
+            border-radius: 15px;
+            border: 1px solid rgba(52,152,219,0.2);
+        }
+
+        .header label {
+            display: inline-block;
+            width: 80px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .header input, .header select {
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border: 2px solid rgba(52,152,219,0.3);
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.9);
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+
+        .header input:focus, .header select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52,152,219,0.1);
+            background: white;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13px;
+            text-align: center;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        th, td {
+            border: 1px solid rgba(52,152,219,0.2);
+            padding: 12px 8px;
+            transition: all 0.2s ease;
+        }
+
+        th {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        tbody tr {
+            background: linear-gradient(90deg, rgba(255,255,255,0.9) 0%, rgba(248,251,255,0.9) 100%);
+        }
+
+        tbody tr:nth-child(even) {
+            background: linear-gradient(90deg, rgba(240,248,255,0.7) 0%, rgba(235,245,255,0.7) 100%);
+        }
+
+        tbody tr:hover {
+            background: linear-gradient(90deg, rgba(52,152,219,0.1) 0%, rgba(41,128,185,0.05) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .activity-col {
+            text-align: left;
+            width: 200px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .freq-col {
+            width: 80px;
+            font-weight: 500;
+            color: #3498db;
+        }
+
+        .remarks {
+            width: 150px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.8) 100%);
+        }
+
+        .weekend {
+            background: linear-gradient(135deg, rgba(255,193,7,0.3) 0%, rgba(255,235,59,0.2) 100%) !important;
+            color: #856404;
+            font-weight: 500;
+        }
+
+        .weekend th {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.3);
+            accent-color: #3498db;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="checkbox"]:hover {
+            transform: scale(1.4);
+        }
+
+        input[type="checkbox"]:checked {
+            filter: drop-shadow(0 0 3px rgba(52,152,219,0.5));
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 10px;
+            }
+            
+            h2 {
+                font-size: 22px;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+            
+            .header input, .header select {
+                min-width: 150px;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            th, td {
+                padding: 8px 4px;
+            }
+            
+            .activity-col {
+                width: 150px;
+            }
+        }
+
+        /* Scrollbar styling */
+        .table-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: rgba(52,152,219,0.1);
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(45deg, #2980b9, #1f4e79);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <button onclick="window.location.href='index.html'" style="
+                background: linear-gradient(135deg, #3498db, #2980b9);
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                transition: all 0.3s ease;
+            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.15)'" 
+               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'">
+                ← Back to Dashboard
+            </button>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <img src="icons/tlogo.png" alt="TESDA Logo" style="width: 60px; height: auto;">
+                <h2 style="margin: 0;">EQUIPMENT MAINTENANCE SCHEDULE - 2025</h2>
+                <img src="icons/blogo.png" alt="TESDA Logo" style="width: 60px; height: auto;">
+            </div>
+            <div style="width: 120px;"></div> <!-- Spacer to balance the layout -->
+        </div>
+        
+        <div class="header">
+            <label>User:</label>
+            <select id="user">
+                <option value="" selected disabled>Select user</option>
+                <optgroup label="ROD – Regional Operations Division">
+                    <option data-link="https://docs.google.com/spreadsheets/d/1qUyb-VsBlfKNYrdBDvGaf3hX-d8nK0hw3UgZfE6UKEY/edit?gid=794072353#gid=794072353">AGBAY, ANNALIE B.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1CZxzVCZ2zhuiSQFxF3cAS7XVaF2lNQAyg63t9L00z3U/edit?gid=794072353#gid=794072353">CABAHUG, JOCELYN V</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1y9bKXcSs5eVE23E8lSuL9x__X7hl7y59wUzWQfy6oM4/edit?gid=794072353#gid=794072353">CALAGO, ZHAIRAH P</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1DPK-nXP4Yj9jCF0pXjoCK7Cd9Igh1bgX_9H3ZKspKF4/edit?gid=794072353#gid=794072353">GAYAS, PRISCILLA B.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1l27FUPokwQKE-3NY3lobxvbj_cZo8usOC5gLzT68qy4/edit?gid=794072353#gid=794072353">NAVARRO, CHRISTINE A. </option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1P5U6r5uhsgw6wWq-wW_UirJyzNSsNo1al61xrcxif6U/edit?gid=794072353#gid=794072353">SAROMINES, KISSYLEN G.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1gZFkvOpIj8V9iNYJC179Dy2y59814jgArdQjP9fx4U4/edit?gid=794072353#gid=794072353">SERINAS, KATRINA MAE CELESTE G.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1nzEHWsKDAW3DqJqFqxGa2tu3bL9-uZ-XChPMKfXLcqA/edit?gid=794072353#gid=794072353">SOON, CHEYENNE S.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1rNekrtRnwImYPjglBZEu-nxXBP5zq3qjdLXSIufg1_Y/edit?gid=794072353#gid=794072353">TECSON, GERARD RANDOLF G.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1Prg0ANQqZK5T46qiurvhAh9z3rBz_2KeH8gy7IQ-un4/edit?gid=794072353#gid=794072353">AUMAN, RHEA B.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1rJ8f0QDiy92j-WNaTWimoJMfgGIvu9DORvg1pEhiJIA/edit?gid=794072353#gid=794072353">BANTO, SAFROULAH A.</option>
+                    <option>CASTRO, JENALYN O.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1wXBRr2YrwjY07HnNjJL-bfjv9qDK00tp5umXnsrWBXo/edit?gid=794072353#gid=794072353">REROMA, JAN KANE T.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/11kdp7XzKQVBniir2jlaWl02-wsQH9YR9UaL1wcrTObM/edit?gid=794072353#gid=794072353">ROSALES, ALJOHN T.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1wKXVT2mqYh3mn4I3VW2bSjZUoTmGf8E16Tegj9mcrW0/edit?gid=794072353#gid=794072353">TECSON, JO-ANN G</option>
+                </optgroup>
+                <optgroup label="FASD – Finance and Administrative Services Division">
+                    <option data-link="https://docs.google.com/spreadsheets/d/11Py1-wNCS2DppEcsn-QCGABZr9R4JP-2gT7jmlZYUcQ/edit?gid=794072353#gid=794072353">AKIATAN, JOSEPHINE F.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1bm16wHz6o4b4UeKmI4UPBFtQmzSS5WelOp30ERoqNsM/edit?gid=794072353#gid=794072353">ALCERA, RIVA JANE D.</option>
+                    <option>DALIGDIG, ALEXANDER A.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1_zv56RMCS3Fg2vjHiwZJHkYpzqLgHBiDtPMCoeukHcI/edit?gid=794072353#gid=794072353">MACACHOR, DONNE MAR L.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/18tsgPjMOZZXa7tQHj1B4I_odicjHHQiDAMIXhqsXQfM/edit?gid=969795599#gid=969795599">MOLDE, MARK ERVIN D.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1Gsw856ZLdH2selPX1MGOYf6Skn8BQwxkTnRsYlIDn3E/edit?gid=794072353#gid=794072353">PARBA, MARLOU G.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1Dj0qmxbrXIyV3ZFj0-MuqwXbByKdedjlXuTOQLbWkX8/edit?gid=794072353#gid=794072353">RECESIO, LIRA M.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1LpsrtdFnpNpSRZfEvqqc0m-h1C3qX3VHchL3DL2_AsU/edit?gid=969795599#gid=969795599">VASQUEZ, IVY MICHELLE T.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1D3hsJC4oCNDIg4dTFreSjxbSW-TIs625q3HdAv0_o0g/edit?gid=794072353#gid=794072353">VERDEFLOR, JASMIN S.</option>
+                    <option>CABATAÑA, ERNIE U.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1WP71nFLPIB7PIxvxxE0cFA0Jq3bJdRALyvbnkCkQ5oA/edit?gid=794072353#gid=794072353">LIBRADO, HAZEL MAE G.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1DvVpoxaOjMAOgCN9ABJe-T9Y_hDW-OGkN3Abe_MIOxk/edit?gid=794072353#gid=794072353">LIMATO, DAISY C.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1aQNDnBZXv3kbpFLuCFgpduRKFvpjWxgHimMZ8id_BAM/edit?gid=794072353#gid=794072353">MADREDIÑOS, JEAN AUBREY P.</option>
+                    <option>MARTORILLAS, SALAZAR S.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/18mhvY5ZG5FaoRZ9B_3oyjjYAUkS-HL88NfgtY8j40ZA/edit?gid=794072353#gid=794072353">PURIGAY, IRENE E.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1BJCRNdc3vMTwgdB0Vp2vEARM_-iMZgwFFZ4ojHD-oqc/edit?gid=794072353#gid=794072353">REMATADO, FENNIE MARIE C.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1jRO9JCwj5IPAk4L0O6gUHcVpZmV_LwemhaTv5qEMJzw/edit?gid=794072353#gid=794072353">SALBADO, MONIC Y.</option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1t66I2EozdYVEzfr287Hu_4RuYm53hagxYttbo3N_TgU/edit?gid=794072353#gid=794072353">SUPILANAS, HENRITHA CHRISTINE C.</option>
+                    <option>ESNARDO, JOHANNA MARI O.</option>
+                    <option>IGOT, JESSA MAE O.</option>
+                    <option>SABEJON, JENESIS N.</option>
+                </optgroup>
+                <optgroup label="ORD – Office of the Regional Director">
+                    <option>Gamaliel B. Vicente, Jr. CESO III, ASEAN ENG.</option>
+                    <option>Alexander A. Daligdig </option>
+                    <option data-link="https://docs.google.com/spreadsheets/d/1Gsw856ZLdH2selPX1MGOYf6Skn8BQwxkTnRsYlIDn3E/edit?gid=794072353#gid=794072353">Marlou G. Parba</option>
+                </optgroup>
+            </select>
+            <div id="user-link-container" style="margin-top: 10px; display: none;">
+                <a id="user-link" href="#" target="_blank" style="color: #007bff; text-decoration: none; font-weight: bold;">
+                    🔗 Open User's IT Infrastructure Inventory
+                </a>
+            </div><br>
+            <label>Month:</label> <select id="month-select"></select>
+        </div>
+
+        <div class="table-container">
+            <table id="schedule-table">
+                <thead>
+                    <tr>
+                        <th class="activity-col">Activities</th>
+                        <th class="freq-col">Frequency</th>
+                        <th class="remarks">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr>
+                        <td class="activity-col">Clean computers & printers</td>
+                        <td class="freq-col">Daily</td>
+                        <td class="remarks"></td>
+                    </tr>
+                    <tr>
+                        <td class="activity-col">Clean computer for viruses</td>
+                        <td class="freq-col">Weekly</td>
+                        <td class="remarks"></td>
+                    </tr>
+                    <tr>
+                        <td class="activity-col">Defragmentation computer's hard drive</td>
+                        <td class="freq-col">Monthly</td>
+                        <td class="remarks"></td>
+                    </tr>
+                    <tr>
+                        <td class="activity-col">Clean computer peripherals</td>
+                        <td class="freq-col">Daily</td>
+                        <td class="remarks"></td>
+                    </tr>
+                    <tr>
+                        <td class="activity-col">Check electric and computer connections</td>
+                        <td class="freq-col">Weekly</td>
+                        <td class="remarks"></td>
+                    </tr>
+                    <tr>
+                        <td class="activity-col">Turn off the unit when not in use</td>
+                        <td class="freq-col">Daily</td>
+                        <td class="remarks"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase with config from external file
+        firebase.initializeApp(window.firebaseConfig);
+        const db = firebase.database();
+
+        const monthNames = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        const monthSelect = document.getElementById("month-select");
+        const table = document.getElementById('schedule-table');
+        const headerRow = table.rows[0];
+        const tableBody = document.getElementById("table-body");
+
+        // Data storage for August checkboxes
+        let augustData = {
+            user: '',
+            checkboxes: {},
+            lastUpdated: new Date().toISOString()
+        };
+
+        // Function to save data to Firebase RTDB
+        async function saveAugustData() {
+            try {
+                await db.ref('maintenance-data/august-2025').set(augustData);
+                console.log('August data saved successfully to RTDB');
+            } catch (error) {
+                console.error('Error saving August data to RTDB:', error);
+                // Fallback: save to localStorage
+                localStorage.setItem('augustChecklistData', JSON.stringify(augustData));
+            }
+        }
+
+        // Function to load data from Firebase RTDB
+        async function loadAugustData() {
+            try {
+                const snapshot = await db.ref('maintenance-data/august-2025').get();
+                if (snapshot.exists()) {
+                    augustData = snapshot.val();
+                    console.log('August data loaded successfully from RTDB');
+                } else {
+                    console.log('No saved August data found in RTDB, starting fresh');
+                }
+            } catch (error) {
+                console.error('Error loading August data from RTDB:', error);
+                // Fallback: load from localStorage
+                const savedData = localStorage.getItem('augustChecklistData');
+                if (savedData) {
+                    augustData = JSON.parse(savedData);
+                    console.log('August data loaded from localStorage');
+                }
+            }
+        }
+
+        // Function to save checkbox state
+        function saveCheckboxState(rowIndex, day, checked) {
+            const key = `${rowIndex}-${day}`;
+            augustData.checkboxes[key] = checked;
+            augustData.lastUpdated = new Date().toISOString();
+            saveAugustData();
+        }
+
+        // Function to load checkbox states for August
+        function loadCheckboxStates() {
+            if (parseInt(monthSelect.value) === 7) { // August is month index 7
+                Array.from(tableBody.rows).forEach((row, rowIndex) => {
+                    const checkboxes = row.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach((checkbox, dayIndex) => {
+                        const day = dayIndex + 1;
+                        const key = `${rowIndex}-${day}`;
+                        if (augustData.checkboxes.hasOwnProperty(key)) {
+                            checkbox.checked = augustData.checkboxes[key];
+                        }
+                    });
+                });
+            }
+        }
+
+        // Populate month dropdown
+        monthNames.forEach((month, i) => {
+            const option = document.createElement("option");
+            option.value = i;
+            option.textContent = `${month} 2025`;
+            monthSelect.appendChild(option);
+        });
+
+        // Function to generate schedule
+        function generateSchedule(monthIndex) {
+            // Clear old headers (keep first 2 and last column)
+            while (headerRow.cells.length > 3) {
+                headerRow.deleteCell(2);
+            }
+
+            // Clear old day columns in body
+            Array.from(tableBody.rows).forEach(row => {
+                while (row.cells.length > 3) {
+                    row.deleteCell(2);
+                }
+            });
+
+            const year = 2025;
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, monthIndex, day);
+                const isWeekend = date.getDay() === 0 || date.getDay() === 6; // Sun=0, Sat=6
+
+                // Add day header
+                const th = document.createElement('th');
+                th.textContent = day;
+                if (isWeekend) th.classList.add("weekend");
+                headerRow.insertBefore(th, headerRow.lastElementChild);
+
+                // Add checkboxes in rows
+                Array.from(tableBody.rows).forEach((row, rowIndex) => {
+                    const td = document.createElement('td');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = "checkbox";
+                    
+                    // Auto-populate checks for Jan-Jul based on frequency
+                    const isJanToJul = monthIndex >= 0 && monthIndex <= 6;
+                    if (isJanToJul) {
+                        const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
+                        let shouldCheck = false;
+                        if (frequencyText.includes('daily')) {
+                            // Daily: check all days
+                            shouldCheck = true;
+                        } else if (frequencyText.includes('weekly')) {
+                            // Weekly: check Mondays only (one per week)
+                            shouldCheck = date.getDay() === 1; // Monday
+                        } else if (frequencyText.includes('monthly')) {
+                            // Monthly: check only the 1st day of the month
+                            shouldCheck = day === 1;
+                        }
+                        checkbox.checked = shouldCheck;
+                    }
+                    
+                    // For August, load saved state or set default
+                    if (monthIndex === 7) { // August
+                        const key = `${rowIndex}-${day}`;
+                        if (augustData.checkboxes.hasOwnProperty(key)) {
+                            checkbox.checked = augustData.checkboxes[key];
+                        } else {
+                            // Set default based on frequency for August
+                            const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
+                            let shouldCheck = false;
+                            if (frequencyText.includes('daily')) {
+                                shouldCheck = true;
+                            } else if (frequencyText.includes('weekly')) {
+                                shouldCheck = date.getDay() === 1; // Monday
+                            } else if (frequencyText.includes('monthly')) {
+                                shouldCheck = day === 1;
+                            }
+                            checkbox.checked = shouldCheck;
+                            // Save the default state
+                            augustData.checkboxes[key] = shouldCheck;
+                        }
+                        
+                        // Add event listener for August checkboxes
+                        checkbox.addEventListener('change', function() {
+                            saveCheckboxState(rowIndex, day, this.checked);
+                        });
+                    }
+                    
+                    if (isWeekend) td.classList.add("weekend");
+                    td.appendChild(checkbox);
+                    row.insertBefore(td, row.lastElementChild);
+                });
+            }
+        }
+
+        // Initialize with current month
+        const currentMonthIndex = new Date().getMonth();
+        monthSelect.value = String(currentMonthIndex);
+        
+        // Load saved data first, then generate schedule
+        loadAugustData().then(() => {
+            generateSchedule(currentMonthIndex);
+        });
+
+        // Change month on select
+        monthSelect.addEventListener("change", () => {
+            generateSchedule(parseInt(monthSelect.value));
+        });
+
+        // User selection and link functionality
+        const userSelect = document.getElementById("user");
+        const userLinkContainer = document.getElementById("user-link-container");
+        const userLink = document.getElementById("user-link");
+
+        userSelect.addEventListener("change", () => {
+            const selectedOption = userSelect.options[userSelect.selectedIndex];
+            const link = selectedOption.getAttribute("data-link");
+            
+            if (link) {
+                userLink.href = link;
+                userLinkContainer.style.display = "block";
+            } else {
+                userLinkContainer.style.display = "none";
+            }
+            
+            // Save user selection for August data
+            augustData.user = selectedOption.textContent;
+            if (parseInt(monthSelect.value) === 7) { // August
+                saveAugustData();
+            }
+        });
+    </script>
+</body>
+</html>
