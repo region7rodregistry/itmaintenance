@@ -822,42 +822,58 @@
         const headerRow = table.rows[0];
         const tableBody = document.getElementById("table-body");
 
-        // Data storage for August checkboxes
+        // Data storage for August checkboxes and remarks (user-specific)
         let augustData = {
             user: '',
             checkboxes: {},
+            remarks: {},
             lastUpdated: new Date().toISOString()
         };
 
+        // Function to get user-specific data key
+        function getUserDataKey(userName) {
+            return `maintenance-data/august-2025/${encodeURIComponent(userName)}`;
+        }
+
         // Function to save data to Firebase RTDB
         async function saveAugustData() {
+            if (!augustData.user) {
+                console.log('No user selected, skipping save');
+                return;
+            }
             try {
-                await db.ref('maintenance-data/august-2025').set(augustData);
-                console.log('August data saved successfully to RTDB');
+                const userKey = getUserDataKey(augustData.user);
+                await db.ref(userKey).set(augustData);
+                console.log('August data saved successfully to RTDB for user:', augustData.user);
             } catch (error) {
                 console.error('Error saving August data to RTDB:', error);
                 // Fallback: save to localStorage
-                localStorage.setItem('augustChecklistData', JSON.stringify(augustData));
+                localStorage.setItem(`augustChecklistData_${encodeURIComponent(augustData.user)}`, JSON.stringify(augustData));
             }
         }
 
         // Function to load data from Firebase RTDB
         async function loadAugustData() {
+            if (!augustData.user) {
+                console.log('No user selected, starting fresh');
+                return;
+            }
             try {
-                const snapshot = await db.ref('maintenance-data/august-2025').get();
+                const userKey = getUserDataKey(augustData.user);
+                const snapshot = await db.ref(userKey).get();
                 if (snapshot.exists()) {
                     augustData = snapshot.val();
-                    console.log('August data loaded successfully from RTDB');
+                    console.log('August data loaded successfully from RTDB for user:', augustData.user);
                 } else {
-                    console.log('No saved August data found in RTDB, starting fresh');
+                    console.log('No saved August data found in RTDB for user:', augustData.user, ', starting fresh');
                 }
             } catch (error) {
                 console.error('Error loading August data from RTDB:', error);
                 // Fallback: load from localStorage
-                const savedData = localStorage.getItem('augustChecklistData');
+                const savedData = localStorage.getItem(`augustChecklistData_${encodeURIComponent(augustData.user)}`);
                 if (savedData) {
                     augustData = JSON.parse(savedData);
-                    console.log('August data loaded from localStorage');
+                    console.log('August data loaded from localStorage for user:', augustData.user);
                 }
             }
         }
@@ -870,7 +886,60 @@
             saveAugustData();
         }
 
-        // Function to load checkbox states for August
+        // Function to save remarks
+        function saveRemarks(rowIndex, remarks) {
+            augustData.remarks[rowIndex] = remarks;
+            augustData.lastUpdated = new Date().toISOString();
+            saveAugustData();
+        }
+
+        // Function to generate randomized weekly schedule (avoiding weekends)
+        function getRandomWeeklyDays(monthIndex, year) {
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+            const weeklyDays = [];
+            
+            // Group days by week (Monday-Sunday)
+            for (let weekStart = 1; weekStart <= daysInMonth; weekStart += 7) {
+                const weekDays = [];
+                for (let day = weekStart; day < weekStart + 7 && day <= daysInMonth; day++) {
+                    const date = new Date(year, monthIndex, day);
+                    const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+                    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday only
+                        weekDays.push(day);
+                    }
+                }
+                if (weekDays.length > 0) {
+                    // Randomly select one weekday from this week
+                    const randomIndex = Math.floor(Math.random() * weekDays.length);
+                    weeklyDays.push(weekDays[randomIndex]);
+                }
+            }
+            return weeklyDays;
+        }
+
+        // Function to generate randomized monthly schedule (avoiding weekends)
+        function getRandomMonthlyDay(monthIndex, year) {
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+            const weekdays = [];
+            
+            // Find all weekdays in the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, monthIndex, day);
+                const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+                if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday only
+                    weekdays.push(day);
+                }
+            }
+            
+            // Randomly select one weekday
+            if (weekdays.length > 0) {
+                const randomIndex = Math.floor(Math.random() * weekdays.length);
+                return weekdays[randomIndex];
+            }
+            return 1; // Fallback to first day if no weekdays found
+        }
+
+        // Function to load checkbox states and remarks for August
         function loadCheckboxStates() {
             if (parseInt(monthSelect.value) === 7) { // August is month index 7
                 Array.from(tableBody.rows).forEach((row, rowIndex) => {
@@ -882,6 +951,12 @@
                             checkbox.checked = augustData.checkboxes[key];
                         }
                     });
+                    
+                    // Load remarks for this row
+                    const remarksCell = row.querySelector('.remarks');
+                    if (remarksCell && augustData.remarks.hasOwnProperty(rowIndex)) {
+                        remarksCell.textContent = augustData.remarks[rowIndex];
+                    }
                 });
             }
         }
@@ -911,6 +986,14 @@
             const year = 2025;
             const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
+            // Generate randomized schedules for August
+            let weeklyDays = [];
+            let monthlyDay = 1;
+            if (monthIndex === 7) { // August
+                weeklyDays = getRandomWeeklyDays(monthIndex, year);
+                monthlyDay = getRandomMonthlyDay(monthIndex, year);
+            }
+
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, monthIndex, day);
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6; // Sun=0, Sat=6
@@ -933,14 +1016,22 @@
                         const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
                         let shouldCheck = false;
                         if (frequencyText.includes('daily')) {
-                            // Daily: check all days
-                            shouldCheck = true;
+                            // Daily: check all weekdays only (no weekends)
+                            shouldCheck = !isWeekend;
                         } else if (frequencyText.includes('weekly')) {
                             // Weekly: check Mondays only (one per week)
                             shouldCheck = date.getDay() === 1; // Monday
                         } else if (frequencyText.includes('monthly')) {
-                            // Monthly: check only the 1st day of the month
-                            shouldCheck = day === 1;
+                            // Monthly: check only the 1st weekday of the month
+                            if (day === 1) {
+                                shouldCheck = !isWeekend; // Only check if it's not a weekend
+                            } else if (day === 2 && date.getDay() === 0) {
+                                // If 1st is Sunday, check 2nd (Monday)
+                                shouldCheck = true;
+                            } else if (day === 3 && date.getDay() === 0) {
+                                // If 1st is Saturday, check 3rd (Monday)
+                                shouldCheck = true;
+                            }
                         }
                         checkbox.checked = shouldCheck;
                     }
@@ -951,15 +1042,16 @@
                         if (augustData.checkboxes.hasOwnProperty(key)) {
                             checkbox.checked = augustData.checkboxes[key];
                         } else {
-                            // Set default based on frequency for August
+                            // Set default based on frequency for August with randomization
                             const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
                             let shouldCheck = false;
                             if (frequencyText.includes('daily')) {
-                                shouldCheck = true;
+                                // Daily: check all weekdays only (no weekends)
+                                shouldCheck = !isWeekend;
                             } else if (frequencyText.includes('weekly')) {
-                                shouldCheck = date.getDay() === 1; // Monday
+                                shouldCheck = weeklyDays.includes(day);
                             } else if (frequencyText.includes('monthly')) {
-                                shouldCheck = day === 1;
+                                shouldCheck = day === monthlyDay;
                             }
                             checkbox.checked = shouldCheck;
                             // Save the default state
@@ -977,16 +1069,29 @@
                     row.insertBefore(td, row.lastElementChild);
                 });
             }
-        }
+            
+            // Save default states to Firebase if this is the first time loading August
+            if (monthIndex === 7 && Object.keys(augustData.checkboxes).length > 0) {
+                saveAugustData();
+            }
+             
+             // Load saved remarks for August (moved outside the day loop)
+             if (monthIndex === 7) { // August
+                 Array.from(tableBody.rows).forEach((row, rowIndex) => {
+                     const remarksCell = row.querySelector('.remarks');
+                     if (remarksCell && augustData.remarks.hasOwnProperty(rowIndex)) {
+                         remarksCell.textContent = augustData.remarks[rowIndex];
+                     }
+                 });
+             }
+         }
 
         // Initialize with current month
         const currentMonthIndex = new Date().getMonth();
         monthSelect.value = String(currentMonthIndex);
         
-        // Load saved data first, then generate schedule
-        loadAugustData().then(() => {
-            generateSchedule(currentMonthIndex);
-        });
+        // Generate initial schedule (no user data loaded yet)
+        generateSchedule(currentMonthIndex);
 
         // Change month on select
         monthSelect.addEventListener("change", () => {
@@ -1009,10 +1114,20 @@
                 userLinkContainer.style.display = "none";
             }
             
-            // Save user selection for August data
-            augustData.user = selectedOption.textContent;
-            if (parseInt(monthSelect.value) === 7) { // August
-                saveAugustData();
+            // Update user selection and load user-specific data
+            const newUser = selectedOption.textContent;
+            if (newUser !== augustData.user) {
+                augustData.user = newUser;
+                augustData.checkboxes = {};
+                augustData.remarks = {};
+                augustData.lastUpdated = new Date().toISOString();
+                
+                // Load user-specific data if August is selected
+                if (parseInt(monthSelect.value) === 7) { // August
+                    loadAugustData().then(() => {
+                        generateSchedule(7); // Regenerate August schedule with user data
+                    });
+                }
             }
         });
 
@@ -1023,7 +1138,7 @@
             const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => cb.disabled = false);
             // Enable/disable remarks cells
-            Array.from(tableBody.rows).forEach(row => {
+            Array.from(tableBody.rows).forEach((row, rowIndex) => {
                 let remarksCell = row.querySelector('.remarks');
                 if (isEditable) {
                     if (!remarksCell.querySelector('textarea')) {
@@ -1048,7 +1163,13 @@
                 } else {
                     const textarea = remarksCell.querySelector('textarea');
                     if (textarea) {
-                        remarksCell.textContent = textarea.value;
+                        const remarksValue = textarea.value;
+                        remarksCell.textContent = remarksValue;
+                        
+                        // Save remarks to Firebase when updating (for August)
+                        if (parseInt(monthSelect.value) === 7) { // August
+                            saveRemarks(rowIndex, remarksValue);
+                        }
                     }
                 }
             });
@@ -1062,7 +1183,7 @@
             } else {
                 setEditable(false);
                 editUpdateBtn.textContent = 'Edit';
-                // Optionally: Save remarks to augustData or backend here
+                // Remarks are automatically saved when switching from edit mode
             }
         });
         // On load, make sure checkboxes and remarks are not editable
