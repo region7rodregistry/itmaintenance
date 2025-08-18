@@ -1087,9 +1087,11 @@
                 monthlyDay = getRandomMonthlyDay(monthIndex, year);
             }
 
+            let needsSaveNormalization = false;
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, monthIndex, day);
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6; // Sun=0, Sat=6
+                const forceUnpopulated = (monthIndex > 7) || (monthIndex === 7 && day >= 16);
 
                 // Add day header
                 const th = document.createElement('th');
@@ -1129,24 +1131,38 @@
                         checkbox.checked = shouldCheck;
                     }
                     
-                    // Load saved state or set default for all months
+                    // Load saved state or set default for all months, with forced unpopulated Aug16–Dec
                     const key = `${rowIndex}-${day}`;
                     if (currentData.checkboxes.hasOwnProperty(key)) {
-                        checkbox.checked = currentData.checkboxes[key];
-                    } else {
-                        // Set default based on frequency
-                        const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
-                        let shouldCheck = false;
-                        if (frequencyText.includes('daily')) {
-                            shouldCheck = !isWeekend;
-                        } else if (frequencyText.includes('weekly')) {
-                            shouldCheck = monthIndex === 7 ? weeklyDays.includes(day) : (date.getDay() === 1);
-                        } else if (frequencyText.includes('monthly')) {
-                            shouldCheck = monthIndex === 7 ? (day === monthlyDay) : (day === 1 && !isWeekend) || (day === 2 && date.getDay() === 1) || (day === 3 && date.getDay() === 1);
+                        if (forceUnpopulated) {
+                            checkbox.checked = false;
+                            if (currentData.checkboxes[key] !== false) {
+                                currentData.checkboxes[key] = false;
+                                needsSaveNormalization = true;
+                            }
+                        } else {
+                            checkbox.checked = currentData.checkboxes[key];
                         }
-                        checkbox.checked = shouldCheck;
-                        // Save the default state in-memory so first save persists it
-                        currentData.checkboxes[key] = shouldCheck;
+                    } else {
+                        if (forceUnpopulated) {
+                            checkbox.checked = false;
+                            currentData.checkboxes[key] = false;
+                            needsSaveNormalization = true;
+                        } else {
+                            // Set default based on frequency
+                            const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
+                            let shouldCheck = false;
+                            if (frequencyText.includes('daily')) {
+                                shouldCheck = !isWeekend;
+                            } else if (frequencyText.includes('weekly')) {
+                                shouldCheck = monthIndex === 7 ? weeklyDays.includes(day) : (date.getDay() === 1);
+                            } else if (frequencyText.includes('monthly')) {
+                                shouldCheck = monthIndex === 7 ? (day === monthlyDay) : (day === 1 && !isWeekend) || (day === 2 && date.getDay() === 1) || (day === 3 && date.getDay() === 1);
+                            }
+                            checkbox.checked = shouldCheck;
+                            // Save the default state in-memory so first save persists it
+                            currentData.checkboxes[key] = shouldCheck;
+                        }
                     }
 
                     // Add event listener for checkbox changes (all months)
@@ -1166,7 +1182,7 @@
             }
             
             // Save default states to Firebase if user is selected and we have defaults
-            if (currentData.user && Object.keys(currentData.checkboxes).length > 0) {
+            if (currentData.user && (needsSaveNormalization || Object.keys(currentData.checkboxes).length > 0)) {
                 saveMonthData();
             }
 
