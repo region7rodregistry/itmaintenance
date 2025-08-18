@@ -763,6 +763,7 @@
             <label>Month:</label> <select id="month-select"></select>
         </div>
         <button class="checklist-button" id="edit-update-btn">Edit</button>
+        <button class="checklist-button" id="clear-update-btn" title="Clear all checkboxes for the current month">Clear Month</button>
         <div class="table-container">
             <table id="schedule-table">
                 <thead>
@@ -961,6 +962,53 @@
             }
         }
 
+        // Function to clear all data for current month and user (checkboxes and remarks)
+        async function clearCurrentMonthData() {
+            if (!augustData.user) {
+                console.log('No user selected, cannot clear data');
+                return;
+            }
+            
+            const currentMonth = parseInt(monthSelect.value);
+            
+            // Clear all checkboxes and remarks for the current month
+            augustData.checkboxes = {};
+            augustData.remarks = {};
+            augustData.lastUpdated = new Date().toISOString();
+            
+            // Save cleared data to Firebase
+            await saveAugustData();
+            
+            // Regenerate the schedule to show unchecked boxes
+            generateSchedule(currentMonth);
+            
+            console.log(`All data cleared successfully for user: ${augustData.user}, month: ${monthNames[currentMonth]}`);
+        }
+
+        // Function to clear all checkboxes for current month across all users
+        function clearAllCheckboxesForCurrentMonth() {
+            const currentMonth = parseInt(monthSelect.value);
+            const currentMonthName = monthNames[currentMonth];
+            
+            // Get all checkboxes in the current month's table
+            const allCheckboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+            
+            // Uncheck all checkboxes
+            allCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // If it's August and a user is selected, also clear the saved data
+            if (currentMonth === 7 && augustData.user) {
+                augustData.checkboxes = {};
+                augustData.remarks = {};
+                augustData.lastUpdated = new Date().toISOString();
+                saveAugustData();
+            }
+            
+            console.log(`All checkboxes cleared for ${currentMonthName} 2025`);
+        }
+
         // Populate month dropdown
         monthNames.forEach((month, i) => {
             const option = document.createElement("option");
@@ -1092,6 +1140,9 @@
         
         // Generate initial schedule (no user data loaded yet)
         generateSchedule(currentMonthIndex);
+        
+        // Clear all data on page load (commented out to avoid clearing on every load)
+        // clearCurrentMonthData();
 
         // Change month on select
         monthSelect.addEventListener("change", () => {
@@ -1188,6 +1239,13 @@
         });
         // On load, make sure checkboxes and remarks are not editable
         setEditable(false);
+        
+        // Add event listener for Clear button
+        const clearUpdateBtn = document.getElementById('clear-update-btn');
+        clearUpdateBtn.addEventListener('click', function() {
+            // Clear all checkboxes for the current month (works for all months and users)
+            clearAllCheckboxesForCurrentMonth();
+        });
     </script>
 </body>
 </html>
