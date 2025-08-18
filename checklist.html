@@ -823,58 +823,68 @@
         const headerRow = table.rows[0];
         const tableBody = document.getElementById("table-body");
 
-        // Data storage for August checkboxes and remarks (user-specific)
-        let augustData = {
+        // Data storage for current month checkboxes and remarks (user-specific)
+        let currentData = {
             user: '',
             checkboxes: {},
             remarks: {},
             lastUpdated: new Date().toISOString()
         };
 
-        // Function to get user-specific data key
-        function getUserDataKey(userName) {
-            return `maintenance-data/august-2025/${encodeURIComponent(userName)}`;
+        // Helpers for month/user scoping
+        function getMonthKey(monthIndex) {
+            const name = monthNames[monthIndex].toLowerCase();
+            return `${name}-2025`;
+        }
+        // Function to get user+month-specific data key
+        function getUserDataKey(userName, monthIndex) {
+            return `maintenance-data/${getMonthKey(monthIndex)}/${encodeURIComponent(userName)}`;
         }
 
-        // Function to save data to Firebase RTDB
-        async function saveAugustData() {
-            if (!augustData.user) {
+        // Function to save data to Firebase RTDB (scoped by user and month)
+        async function saveMonthData() {
+            if (!currentData.user) {
                 console.log('No user selected, skipping save');
                 return;
             }
+            const monthIndex = parseInt(monthSelect.value);
             try {
-                const userKey = getUserDataKey(augustData.user);
-                await db.ref(userKey).set(augustData);
-                console.log('August data saved successfully to RTDB for user:', augustData.user);
+                const userKey = getUserDataKey(currentData.user, monthIndex);
+                await db.ref(userKey).set(currentData);
+                console.log(`Data saved successfully to RTDB for user: ${currentData.user}, month: ${monthNames[monthIndex]}`);
             } catch (error) {
-                console.error('Error saving August data to RTDB:', error);
+                console.error('Error saving data to RTDB:', error);
                 // Fallback: save to localStorage
-                localStorage.setItem(`augustChecklistData_${encodeURIComponent(augustData.user)}`, JSON.stringify(augustData));
+                localStorage.setItem(`checklistData_${getMonthKey(monthIndex)}_${encodeURIComponent(currentData.user)}` , JSON.stringify(currentData));
             }
         }
 
-        // Function to load data from Firebase RTDB
-        async function loadAugustData() {
-            if (!augustData.user) {
+        // Function to load data from Firebase RTDB (scoped by user and month)
+        async function loadMonthData() {
+            if (!currentData.user) {
                 console.log('No user selected, starting fresh');
                 return;
             }
+            const monthIndex = parseInt(monthSelect.value);
             try {
-                const userKey = getUserDataKey(augustData.user);
+                const userKey = getUserDataKey(currentData.user, monthIndex);
                 const snapshot = await db.ref(userKey).get();
                 if (snapshot.exists()) {
-                    augustData = snapshot.val();
-                    console.log('August data loaded successfully from RTDB for user:', augustData.user);
+                    currentData = snapshot.val();
+                    console.log('Data loaded successfully from RTDB for user:', currentData.user, 'month:', monthNames[monthIndex]);
                 } else {
-                    console.log('No saved August data found in RTDB for user:', augustData.user, ', starting fresh');
+                    // start fresh for this month
+                    currentData.checkboxes = {};
+                    currentData.remarks = {};
+                    console.log('No saved data found in RTDB for user:', currentData.user, 'month:', monthNames[monthIndex]);
                 }
             } catch (error) {
-                console.error('Error loading August data from RTDB:', error);
+                console.error('Error loading data from RTDB:', error);
                 // Fallback: load from localStorage
-                const savedData = localStorage.getItem(`augustChecklistData_${encodeURIComponent(augustData.user)}`);
+                const savedData = localStorage.getItem(`checklistData_${getMonthKey(monthIndex)}_${encodeURIComponent(currentData.user)}`);
                 if (savedData) {
-                    augustData = JSON.parse(savedData);
-                    console.log('August data loaded from localStorage for user:', augustData.user);
+                    currentData = JSON.parse(savedData);
+                    console.log('Data loaded from localStorage for user:', currentData.user, 'month:', monthNames[monthIndex]);
                 }
             }
         }
@@ -882,16 +892,16 @@
         // Function to save checkbox state
         function saveCheckboxState(rowIndex, day, checked) {
             const key = `${rowIndex}-${day}`;
-            augustData.checkboxes[key] = checked;
-            augustData.lastUpdated = new Date().toISOString();
-            saveAugustData();
+            currentData.checkboxes[key] = checked;
+            currentData.lastUpdated = new Date().toISOString();
+            saveMonthData();
         }
 
         // Function to save remarks
         function saveRemarks(rowIndex, remarks) {
-            augustData.remarks[rowIndex] = remarks;
-            augustData.lastUpdated = new Date().toISOString();
-            saveAugustData();
+            currentData.remarks[rowIndex] = remarks;
+            currentData.lastUpdated = new Date().toISOString();
+            saveMonthData();
         }
 
         // Function to generate randomized weekly schedule (avoiding weekends)
@@ -940,49 +950,41 @@
             return 1; // Fallback to first day if no weekdays found
         }
 
-        // Function to load checkbox states and remarks for August
+        // Function to load checkbox states and remarks for current month
         function loadCheckboxStates() {
-            if (parseInt(monthSelect.value) === 7) { // August is month index 7
-                Array.from(tableBody.rows).forEach((row, rowIndex) => {
-                    const checkboxes = row.querySelectorAll('input[type="checkbox"]');
-                    checkboxes.forEach((checkbox, dayIndex) => {
-                        const day = dayIndex + 1;
-                        const key = `${rowIndex}-${day}`;
-                        if (augustData.checkboxes.hasOwnProperty(key)) {
-                            checkbox.checked = augustData.checkboxes[key];
-                        }
-                    });
-                    
-                    // Load remarks for this row
-                    const remarksCell = row.querySelector('.remarks');
-                    if (remarksCell && augustData.remarks.hasOwnProperty(rowIndex)) {
-                        remarksCell.textContent = augustData.remarks[rowIndex];
+            Array.from(tableBody.rows).forEach((row, rowIndex) => {
+                const checkboxes = row.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach((checkbox, dayIndex) => {
+                    const day = dayIndex + 1;
+                    const key = `${rowIndex}-${day}`;
+                    if (currentData.checkboxes.hasOwnProperty(key)) {
+                        checkbox.checked = currentData.checkboxes[key];
                     }
                 });
-            }
+                // Load remarks for this row
+                const remarksCell = row.querySelector('.remarks');
+                if (remarksCell && currentData.remarks.hasOwnProperty(rowIndex)) {
+                    remarksCell.textContent = currentData.remarks[rowIndex];
+                }
+            });
         }
 
         // Function to clear all data for current month and user (checkboxes and remarks)
         async function clearCurrentMonthData() {
-            if (!augustData.user) {
+            if (!currentData.user) {
                 console.log('No user selected, cannot clear data');
                 return;
             }
-            
             const currentMonth = parseInt(monthSelect.value);
-            
             // Clear all checkboxes and remarks for the current month
-            augustData.checkboxes = {};
-            augustData.remarks = {};
-            augustData.lastUpdated = new Date().toISOString();
-            
+            currentData.checkboxes = {};
+            currentData.remarks = {};
+            currentData.lastUpdated = new Date().toISOString();
             // Save cleared data to Firebase
-            await saveAugustData();
-            
+            await saveMonthData();
             // Regenerate the schedule to show unchecked boxes
             generateSchedule(currentMonth);
-            
-            console.log(`All data cleared successfully for user: ${augustData.user}, month: ${monthNames[currentMonth]}`);
+            console.log(`All data cleared successfully for user: ${currentData.user}, month: ${monthNames[currentMonth]}`);
         }
 
         // Function to clear all checkboxes for current month across all users
@@ -998,12 +1000,12 @@
                 checkbox.checked = false;
             });
             
-            // If it's August and a user is selected, also clear the saved data
-            if (currentMonth === 7 && augustData.user) {
-                augustData.checkboxes = {};
-                augustData.remarks = {};
-                augustData.lastUpdated = new Date().toISOString();
-                saveAugustData();
+            // If a user is selected, also clear the saved data for this month
+            if (currentData.user) {
+                currentData.checkboxes = {};
+                currentData.remarks = {};
+                currentData.lastUpdated = new Date().toISOString();
+                saveMonthData();
             }
             
             console.log(`All checkboxes cleared for ${currentMonthName} 2025`);
@@ -1084,33 +1086,30 @@
                         checkbox.checked = shouldCheck;
                     }
                     
-                    // For August, load saved state or set default
-                    if (monthIndex === 7) { // August
-                        const key = `${rowIndex}-${day}`;
-                        if (augustData.checkboxes.hasOwnProperty(key)) {
-                            checkbox.checked = augustData.checkboxes[key];
-                        } else {
-                            // Set default based on frequency for August with randomization
-                            const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
-                            let shouldCheck = false;
-                            if (frequencyText.includes('daily')) {
-                                // Daily: check all weekdays only (no weekends)
-                                shouldCheck = !isWeekend;
-                            } else if (frequencyText.includes('weekly')) {
-                                shouldCheck = weeklyDays.includes(day);
-                            } else if (frequencyText.includes('monthly')) {
-                                shouldCheck = day === monthlyDay;
-                            }
-                            checkbox.checked = shouldCheck;
-                            // Save the default state
-                            augustData.checkboxes[key] = shouldCheck;
+                    // Load saved state or set default for all months
+                    const key = `${rowIndex}-${day}`;
+                    if (currentData.checkboxes.hasOwnProperty(key)) {
+                        checkbox.checked = currentData.checkboxes[key];
+                    } else {
+                        // Set default based on frequency
+                        const frequencyText = (row.cells[1]?.textContent || '').trim().toLowerCase();
+                        let shouldCheck = false;
+                        if (frequencyText.includes('daily')) {
+                            shouldCheck = !isWeekend;
+                        } else if (frequencyText.includes('weekly')) {
+                            shouldCheck = monthIndex === 7 ? weeklyDays.includes(day) : (date.getDay() === 1);
+                        } else if (frequencyText.includes('monthly')) {
+                            shouldCheck = monthIndex === 7 ? (day === monthlyDay) : (day === 1 && !isWeekend) || (day === 2 && date.getDay() === 1) || (day === 3 && date.getDay() === 1);
                         }
-                        
-                        // Add event listener for August checkboxes
-                        checkbox.addEventListener('change', function() {
-                            saveCheckboxState(rowIndex, day, this.checked);
-                        });
+                        checkbox.checked = shouldCheck;
+                        // Save the default state in-memory so first save persists it
+                        currentData.checkboxes[key] = shouldCheck;
                     }
+
+                    // Add event listener for checkbox changes (all months)
+                    checkbox.addEventListener('change', function() {
+                        saveCheckboxState(rowIndex, day, this.checked);
+                    });
                     
                     if (isWeekend) td.classList.add("weekend");
                     td.appendChild(checkbox);
@@ -1118,20 +1117,18 @@
                 });
             }
             
-            // Save default states to Firebase if this is the first time loading August
-            if (monthIndex === 7 && Object.keys(augustData.checkboxes).length > 0) {
-                saveAugustData();
+            // Save default states to Firebase if user is selected and we have defaults
+            if (currentData.user && Object.keys(currentData.checkboxes).length > 0) {
+                saveMonthData();
             }
-             
-             // Load saved remarks for August (moved outside the day loop)
-             if (monthIndex === 7) { // August
-                 Array.from(tableBody.rows).forEach((row, rowIndex) => {
-                     const remarksCell = row.querySelector('.remarks');
-                     if (remarksCell && augustData.remarks.hasOwnProperty(rowIndex)) {
-                         remarksCell.textContent = augustData.remarks[rowIndex];
-                     }
-                 });
-             }
+
+            // Load saved remarks for current month
+            Array.from(tableBody.rows).forEach((row, rowIndex) => {
+                const remarksCell = row.querySelector('.remarks');
+                if (remarksCell && currentData.remarks.hasOwnProperty(rowIndex)) {
+                    remarksCell.textContent = currentData.remarks[rowIndex];
+                }
+            });
          }
 
         // Initialize with current month
@@ -1146,7 +1143,10 @@
 
         // Change month on select
         monthSelect.addEventListener("change", () => {
-            generateSchedule(parseInt(monthSelect.value));
+            // Load month+user specific data then regenerate
+            loadMonthData().then(() => {
+                generateSchedule(parseInt(monthSelect.value));
+            });
         });
 
         // User selection and link functionality
@@ -1167,18 +1167,15 @@
             
             // Update user selection and load user-specific data
             const newUser = selectedOption.textContent;
-            if (newUser !== augustData.user) {
-                augustData.user = newUser;
-                augustData.checkboxes = {};
-                augustData.remarks = {};
-                augustData.lastUpdated = new Date().toISOString();
-                
-                // Load user-specific data if August is selected
-                if (parseInt(monthSelect.value) === 7) { // August
-                    loadAugustData().then(() => {
-                        generateSchedule(7); // Regenerate August schedule with user data
-                    });
-                }
+            if (newUser !== currentData.user) {
+                currentData.user = newUser;
+                currentData.checkboxes = {};
+                currentData.remarks = {};
+                currentData.lastUpdated = new Date().toISOString();
+                // Load user+month specific data then regenerate current month
+                loadMonthData().then(() => {
+                    generateSchedule(parseInt(monthSelect.value));
+                });
             }
         });
 
@@ -1216,11 +1213,8 @@
                     if (textarea) {
                         const remarksValue = textarea.value;
                         remarksCell.textContent = remarksValue;
-                        
-                        // Save remarks to Firebase when updating (for August)
-                        if (parseInt(monthSelect.value) === 7) { // August
-                            saveRemarks(rowIndex, remarksValue);
-                        }
+                        // Save remarks to Firebase when updating (all months)
+                        saveRemarks(rowIndex, remarksValue);
                     }
                 }
             });
