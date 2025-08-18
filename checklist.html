@@ -838,7 +838,9 @@
         }
         // Function to get user+month-specific data key
         function getUserDataKey(userName, monthIndex) {
-            return `maintenance-data/${getMonthKey(monthIndex)}/${encodeURIComponent(userName)}`;
+            // Encode all disallowed RTDB chars; encodeURIComponent covers all except '.'
+            const encoded = encodeURIComponent(userName).replace(/\./g, '%2E');
+            return `maintenance-data/${getMonthKey(monthIndex)}/${encoded}`;
         }
 
         // Function to save data to Firebase RTDB (scoped by user and month)
