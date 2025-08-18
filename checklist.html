@@ -813,6 +813,7 @@
         // Initialize Firebase with config from external file
         firebase.initializeApp(window.firebaseConfig);
         const db = firebase.database();
+        let currentUserMonthRef = null; // RTDB listener reference
 
         const monthNames = [
             "January", "February", "March", "April", "May", "June",
@@ -975,9 +976,39 @@
                 });
                 // Load remarks for this row
                 const remarksCell = row.querySelector('.remarks');
-                if (remarksCell && currentData.remarks.hasOwnProperty(rowIndex)) {
-                    remarksCell.textContent = currentData.remarks[rowIndex];
+                if (remarksCell) {
+                    const value = currentData.remarks.hasOwnProperty(rowIndex) ? (currentData.remarks[rowIndex] ?? '') : '';
+                    const textarea = remarksCell.querySelector('textarea');
+                    if (textarea) {
+                        if (textarea.value !== value) textarea.value = value;
+                    } else {
+                        if (remarksCell.textContent !== value) remarksCell.textContent = value;
+                    }
                 }
+            });
+        }
+
+        // Subscribe to real-time updates for the selected user+month
+        function subscribeToRealtime() {
+            if (!currentData.user) return;
+            const monthIndex = parseInt(monthSelect.value);
+            const refPath = getUserDataKey(currentData.user, monthIndex);
+            // Detach previous
+            if (currentUserMonthRef) {
+                currentUserMonthRef.off();
+                currentUserMonthRef = null;
+            }
+            // Attach new
+            currentUserMonthRef = db.ref(refPath);
+            currentUserMonthRef.on('value', (snapshot) => {
+                if (!snapshot.exists()) return;
+                const incoming = snapshot.val() || {};
+                currentData.checkboxes = incoming.checkboxes || {};
+                currentData.remarks = incoming.remarks || {};
+                currentData.lastUpdated = incoming.lastUpdated || currentData.lastUpdated;
+                loadCheckboxStates();
+            }, (error) => {
+                console.error('Realtime subscription error:', error);
             });
         }
 
@@ -1160,9 +1191,10 @@
 
         // Change month on select
         monthSelect.addEventListener("change", () => {
-            // Load month+user specific data then regenerate
+            // Load month+user specific data then regenerate and subscribe
             loadMonthData().then(() => {
                 generateSchedule(parseInt(monthSelect.value));
+                subscribeToRealtime();
             });
         });
 
@@ -1189,9 +1221,10 @@
                 currentData.checkboxes = {};
                 currentData.remarks = {};
                 currentData.lastUpdated = new Date().toISOString();
-                // Load user+month specific data then regenerate current month
+                // Load user+month specific data then regenerate current month and subscribe
                 loadMonthData().then(() => {
                     generateSchedule(parseInt(monthSelect.value));
+                    subscribeToRealtime();
                 });
             }
         });
