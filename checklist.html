@@ -854,8 +854,6 @@
                 console.log(`Data saved successfully to RTDB for user: ${currentData.user}, month: ${monthNames[monthIndex]}`);
             } catch (error) {
                 console.error('Error saving data to RTDB:', error);
-                // Fallback: save to localStorage
-                localStorage.setItem(`checklistData_${getMonthKey(monthIndex)}_${encodeURIComponent(currentData.user)}` , JSON.stringify(currentData));
             }
         }
 
@@ -880,12 +878,6 @@
                 }
             } catch (error) {
                 console.error('Error loading data from RTDB:', error);
-                // Fallback: load from localStorage
-                const savedData = localStorage.getItem(`checklistData_${getMonthKey(monthIndex)}_${encodeURIComponent(currentData.user)}`);
-                if (savedData) {
-                    currentData = JSON.parse(savedData);
-                    console.log('Data loaded from localStorage for user:', currentData.user, 'month:', monthNames[monthIndex]);
-                }
             }
         }
 
@@ -902,6 +894,24 @@
             currentData.remarks[rowIndex] = remarks;
             currentData.lastUpdated = new Date().toISOString();
             saveMonthData();
+        }
+
+        // Utility: require a user selection before allowing edits
+        function ensureUserSelected() {
+            if (!currentData.user) {
+                alert('Please select a user first before making changes.');
+                return false;
+            }
+            return true;
+        }
+
+        // Simple debounce helper
+        function debounce(fn, delay) {
+            let timerId;
+            return function(...args) {
+                clearTimeout(timerId);
+                timerId = setTimeout(() => fn.apply(this, args), delay);
+            };
         }
 
         // Function to generate randomized weekly schedule (avoiding weekends)
@@ -1108,6 +1118,11 @@
 
                     // Add event listener for checkbox changes (all months)
                     checkbox.addEventListener('change', function() {
+                        if (!ensureUserSelected()) {
+                            // revert visual state if no user selected
+                            this.checked = !this.checked;
+                            return;
+                        }
                         saveCheckboxState(rowIndex, day, this.checked);
                     });
                     
@@ -1189,6 +1204,12 @@
             Array.from(tableBody.rows).forEach((row, rowIndex) => {
                 let remarksCell = row.querySelector('.remarks');
                 if (isEditable) {
+                    if (!ensureUserSelected()) {
+                        // block entering edit mode without a user
+                        isEditMode = false;
+                        editUpdateBtn.textContent = 'Edit';
+                        return;
+                    }
                     if (!remarksCell.querySelector('textarea')) {
                         const textarea = document.createElement('textarea');
                         textarea.value = remarksCell.textContent;
@@ -1205,6 +1226,11 @@
                         textarea.style.boxShadow = '0 2px 6px rgba(52,152,219,0.07)';
                         remarksCell.textContent = '';
                         remarksCell.appendChild(textarea);
+                        // Auto-save remarks while typing (debounced)
+                        textarea.addEventListener('input', debounce(function() {
+                            if (!currentData.user) return;
+                            saveRemarks(rowIndex, this.value);
+                        }, 600));
                     } else {
                         remarksCell.querySelector('textarea').disabled = false;
                     }
@@ -1237,6 +1263,7 @@
         // Add event listener for Clear button
         const clearUpdateBtn = document.getElementById('clear-update-btn');
         clearUpdateBtn.addEventListener('click', function() {
+            if (!ensureUserSelected()) return;
             // Clear all checkboxes for the current month (works for all months and users)
             clearAllCheckboxesForCurrentMonth();
         });
